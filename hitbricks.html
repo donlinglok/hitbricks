@@ -1,0 +1,308 @@
+<style>
+    html,body{
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  background: #000;
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0-beta.12/dist/phaser.min.js"></script>
+<script>
+    const GAME_WIDTH = 900;
+const GAME_HEIGHT = 600;
+const GAME_TYPE = {
+  WAIT: 0,
+  RUN: 1,
+  END: 2
+}
+let speed = 10;
+let score = 0;
+let best = 0;
+let state = GAME_TYPE.WAIT
+let game;
+
+class MainScene extends Phaser.Scene {
+  constructor() {
+    super({ key: "MainScene" })
+  }
+  create() {
+    this.catLand = this.matter.world.nextCategory();
+    this.catPlank = this.matter.world.nextCategory();
+    this.catRed = this.matter.world.nextCategory();
+    this.catBlue = this.matter.world.nextCategory();
+
+    this.cursors = this.input.keyboard.createCursorKeys();
+
+    this.drawBackground();
+    this.drawBlock();
+    this.drawBall();
+    this.drawPlank();
+    this.drawScoreTxt();
+
+    this.matter.world.on('collisionstart', (event, bodyA, bodyB) => {
+      if (bodyA.gameObject.gameType === "block") {
+        if (this.ball.fillColor == bodyA.gameObject.fillColor) {
+          bodyA.gameObject.tweens.remove()
+          bodyA.gameObject.destroy();
+          score += 1
+        }
+      }
+      if (bodyA.gameObject == this.plank1 || bodyB.gameObject == this.plank1) {
+        // this.ball.setCollidesWith([this.catLand, this.catPlank, this.catRed]);
+        this.ball.fillColor = this.plank1.fillColor;
+        this.ball.applyForce({
+          x: .1,
+          y: [-.01, .01][Phaser.Math.Between(0, 1)]
+        })
+      }
+      if (bodyA.gameObject == this.plank2 || bodyB.gameObject == this.plank2) {
+        // this.ball.setCollidesWith([this.catLand, this.catPlank, this.catBlue]);
+        this.ball.fillColor = this.plank2.fillColor;
+        this.ball.applyForce({
+          x: -.1,
+          y: [-.01, .01][Phaser.Math.Between(0, 1)]
+        })
+      }
+    });
+  }
+  drawBackground() {
+    this.bgRect = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0xFDDE9A);
+    this.bgRect.setOrigin(0, 0);
+
+    let land1 = this.add.rectangle(GAME_WIDTH / 2, 0, GAME_WIDTH, 2);
+    this.matter.add.gameObject(land1, {
+      isStatic: true,
+    }).setCollisionCategory(this.catLand);
+
+    let land2 = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT, GAME_WIDTH, 2);
+    this.matter.add.gameObject(land2, {
+      isStatic: true,
+    }).setCollisionCategory(this.catLand);
+  }
+  drawPlank() {
+    this.plank1 = this.add.rectangle(20, GAME_HEIGHT / 2, 10, 100, 0xD8220D);
+    this.plank2 = this.add.rectangle(GAME_WIDTH - 20, GAME_HEIGHT / 2, 10, 100, 0x0D88D8);
+
+    this.matter.add.gameObject(this.plank1, {
+      isStatic: true,
+    });
+    this.matter.add.gameObject(this.plank2, {
+      isStatic: true,
+    });
+
+    this.plank1.setCollisionCategory(this.catPlank);
+    this.plank2.setCollisionCategory(this.catPlank);
+  }
+  drawBall() {
+    this.ball = this.matter.add.gameObject(this.add.circle(30, GAME_HEIGHT / 2, 6, 0xD8220D), {
+      isStatic: false,
+    }).setCircle();
+    const body = this.ball.body;
+    this.matter.body.setInertia(body, Infinity)
+
+    this.ball.setFriction(0)
+    this.ball.setFrictionAir(0)
+    this.ball.setBounce(1);
+
+    this.ball.setCollidesWith([this.catLand, this.catPlank, this.catRed, this.catBlue]);
+  }
+  drawBlock() {
+    for (let i = 0; i < 10; i++) {
+      for (let j = 0; j < 6; j++) {
+        let block = this.add.rectangle(
+          190 + 56 * i + 20,
+          100 + j * 80, 6, 30,
+          i % 2 ? 0xD8220D : 0x0D88D8);
+        block.setOrigin(0, 0);
+        block.gameType = "block"
+        this.matter.add.gameObject(block, {
+          isStatic: true,
+        })
+        if (i % 2) {
+          block.tweens = this.tweens.add({
+            targets: block,
+            props: {
+              y: { value: "+=50", duration: 1000, },
+            },
+            ease: 'Sine.easeInOut',
+            yoyo: true,
+            repeat: -1
+          });
+        } else {
+          block.tweens = this.tweens.add({
+            targets: block,
+            props: {
+              y: { value: "-=50", duration: 1000, },
+            },
+            ease: 'Sine.easeInOut',
+            yoyo: true,
+            repeat: -1
+          });
+        }
+        block.setCollisionCategory(i % 2 ? this.catRed : this.catBlue);
+      }
+    }
+  }
+  drawScoreTxt() {
+    this.scoreText = this.make.text({
+      x: 5,
+      y: 5,
+      text: `score: ${score}`,
+      style: {
+        fontFamily: 'fantasy,Arial',
+        fontSize: '14px',
+        color: '#ffe325',
+      },
+      add: true
+    }).setStroke('#974c1e', 3)
+    this.scoreText.setVisible(false)
+
+    this.ruleTxt = this.make.text({
+      x: GAME_WIDTH / 2 - 145,
+      y: GAME_HEIGHT - 50,
+      text: "空格：开始游戏" + "    " + "上下方向键：控制移动",
+      style: {
+        fontFamily: 'fantasy,Arial',
+        fontSize: '18px',
+        color: '#ffe325',
+        algin: "center"
+      },
+      add: true
+    }).setStroke('#974c1e', 2)
+    this.ruleTxt.alpha = 0;
+    this.ruleTextAni();
+  }
+  ruleTextAni() {
+    if (this.ruleTxt.alpha == 1) {
+      this.ruleTxt.alpha = 0;
+    } else {
+      this.ruleTxt.alpha = 1;
+    }
+    this.time.delayedCall(700, this.ruleTextAni, [], this);
+  }
+  update() {
+    const { scoreText, cursors } = this;
+    scoreText.setText(`score: ${score}`)
+
+    if (cursors.up.isDown) {
+      this.plank1.y -= speed
+      this.plank2.y += speed
+    }
+    if (cursors.down.isDown) {
+      this.plank1.y += speed
+      this.plank2.y -= speed
+    }
+
+    this.plank1.y = Math.max(this.plank1.height / 2, Math.min(GAME_HEIGHT - this.plank1.height / 2, this.plank1.y))
+    this.plank2.y = Math.max(this.plank2.height / 2, Math.min(GAME_HEIGHT - this.plank2.height / 2, this.plank2.y))
+
+    if (state == GAME_TYPE.WAIT) {
+      this.ball.y = this.plank1.y
+    }
+
+    if (cursors.space.isDown) {
+      if (state == GAME_TYPE.WAIT) {
+        state = GAME_TYPE.RUN;
+        this.ruleTxt.setVisible(false);
+        this.scoreText.setVisible(true)
+        score = 0
+        this.ball.applyForce({
+          x: .002,
+          y: [-.0001, .0001][Phaser.Math.Between(0, 1)]
+        })
+      }
+    }
+
+    if (this.ball.x - this.ball.width <= 0 || this.ball.x + this.ball.width >= GAME_WIDTH) {
+      state = GAME_TYPE.END;
+      this.scene.launch("OverScene");
+      this.scene.pause()
+    }
+
+  }
+}
+
+class OverScene extends Phaser.Scene {
+  constructor() {
+    super({ key: "OverScene" })
+  }
+  create() {
+    this.bgRect = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000);
+    this.bgRect.setOrigin(0, 0);
+    this.bgRect.fillAlpha = 0.85;
+    this.txt = this.add.text(GAME_WIDTH / 2, 150, "GAME OVER", {
+      fontFamily: 'fantasy,Arial',
+      fontSize: '48px',
+      color: '#ffe325',
+    }).setStroke('#974c1e', 6)
+    this.txt.setOrigin(.5)
+    this.scoreTxt = this.add.text(GAME_WIDTH / 2, 240, `score: ${score}`, {
+      fontFamily: 'fantasy,Arial',
+      fontSize: '28px',
+      color: '#ffffff',
+    })
+    this.scoreTxt.setOrigin(.5)
+
+    this.bestTxt = this.add.text(GAME_WIDTH / 2, 290, `best: ${best}`, {
+      fontFamily: 'fantasy,Arial',
+      fontSize: '28px',
+      color: '#ffffff',
+    })
+    this.bestTxt.setOrigin(.5)
+
+    this.againTxt = this.add.text(GAME_WIDTH / 2, 350, `Restart Game`, {
+      fontFamily: 'fantasy,Arial',
+      fontSize: '24px',
+      color: '#ffe325',
+    }).setStroke('#974c1e', 3)
+    this.againTxt.setAlpha(.8)
+    this.againTxt.setOrigin(.5)
+
+    this.againTxt.on('pointerover', function () {
+      this.againTxt.setAlpha(1);
+    }, this)
+
+    this.againTxt.on('pointerout', function () {
+      this.againTxt.setAlpha(0.8);
+    }, this)
+
+    this.againTxt
+      .setInteractive()
+      .on("pointerdown", () => {
+        state = GAME_TYPE.WAIT
+        this.scene.start("MainScene");
+        if (score > best) best = score;
+        score = 0
+      }, this)
+  }
+}
+
+
+game = new Phaser.Game({
+  type: Phaser.AUTO,
+  autoFocus: true,
+  pixelArt: true,
+  roundPixels: true,
+  antialias: false,
+  backgroundColor: 0xFFFFFF,
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT,
+  },
+  physics: {
+    default: 'matter',
+    matter: {
+      gravity: {
+        x: 0,
+        y: 0,
+        scale: 0
+      },
+      debug: false
+    }
+  },
+  scene: [MainScene, OverScene]
+});
+</script>
